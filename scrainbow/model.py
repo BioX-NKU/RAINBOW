@@ -16,13 +16,14 @@ from sklearn.decomposition import PCA
 import episcanpy.api as epi
 import anndata as ad                       
 from sklearn.preprocessing import StandardScaler
-from utils import *
-from data_processing import *
+
+from .utils import *
+from .data_processing import *
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 c1=standardize
-
 class SCS(nn.Module):
-    def __init__(self,inputs,outputs,device,clrefer,r0,r1=None,r2=None,mid=128):
+    def __init__(self,inputs,outputs,device,clrefer,r0,r1=None,mid=128):
         super(SCS, self).__init__()
         self.device=device
         self.outputs=outputs
@@ -30,11 +31,9 @@ class SCS(nn.Module):
         if self.clrefer:
             self.r0 = r0
             self.r1 = r1
-            self.r2 = r2
-            if self.r2 == None:
-                self.weight_tensor_clrefer=torch.Tensor(c1(np.concatenate([self.r0,self.r1]))).to(self.device)
-            else:
-                self.weight_tensor_clrefer=torch.Tensor(c1(np.concatenate([self.r0,self.r1,self.r2]))).to(self.device)
+            
+            self.weight_tensor_clrefer=torch.Tensor(c1(np.concatenate([self.r0,self.r1]))).to(self.device)
+            
         else:
             self.r0=r0
             self.weight_tensor_cl=torch.Tensor(c1(self.r0)).to(self.device)#自先验
@@ -76,7 +75,7 @@ class SCS(nn.Module):
         self.train_predict=False
         return cosine
 class my_model:
-    def __init__(self,inputs,device,clrefer,r0,r1=None,r2=None,epochs=100,LR=0.001,number=0,outputs=128,datanum=10000,batch_size=64,temp=0.1,nw=4):
+    def __init__(self,inputs,device,clrefer,r0,r1=None,epochs=100,LR=0.001,number=0,outputs=128,datanum=10000,batch_size=64,temp=0.1,nw=4):
         self.device=device
         self.epochs=epochs#100
         self.LR=LR#0.001
@@ -87,8 +86,7 @@ class my_model:
         if self.clrefer:
             self.r0 = r0
             self.r1 = r1
-            self.r2 = r2
-            self.net = SCS(self.inputs,self.outputs,self.device,self.clrefer,self.r0,self.r1,self.r2)
+            self.net = SCS(self.inputs,self.outputs,self.device,self.clrefer,self.r0,self.r1)
         else:
             self.r0 = r0
             self.net = SCS(self.inputs,self.outputs,self.device,self.clrefer,self.r0)
@@ -102,7 +100,6 @@ class my_model:
         bq=[]
         self.train_data=train_data
         self.train_label=train_label
-        #将每种细胞类型的计数矩阵分离 biao表示矩阵 bq表示index
         self.index=list(train_label.value_counts()[train_label.value_counts()>0].index[:])
         for celltype in (self.index):
             train_data_ind=[celltype,train_data[[index for index,i in enumerate(train_label) if i ==celltype],:],[index for index,i in enumerate(train_label) if i ==celltype]]
@@ -143,28 +140,9 @@ class my_model:
             a_cos = a.copy()
             a_cos_prob = a.apply(softmax,axis=0)
             entropy_cos = -a_cos.apply(lambda x: x*np.log2(x)).sum(axis=0)
-            entropy_cos_prob = -a_cos_prob.apply(lambda x: x*np.log2(x)).sum(axis=0)
-            prob_predict = [a[i].sort_values()[-1]for i in range(len(test_data))]
-
+            
             my_predict=[a[i].sort_values().index[-1]for i in range(len(test_data))]#返回预测细胞类型
 
-            return my_predict,prob_predict,entropy_cos,entropy_cos_prob
+            return my_predict,entropy_cos
     
-    def valid_predict(self,valid_data,pred_newtype=False):
-        self.net.train_predict=True
-        cosine=self.net(torch.Tensor(valid_data).to(self.device),torch.Tensor(self.train_data).to(self.device)).detach().to('cpu')
-        a=pd.DataFrame(cosine.T)
-        a.index=train_label
-        a=a.groupby(['cell_type']).mean()
-        valid_predict=[a[i].sort_values().index[-1]for i in range(len(valid_data))]#返回预测细胞类型
-        if pred_newtype == False:
-            return valid_predict
-        else:    
-            a_cos = a.copy()
-            a_cos_prob = a.apply(softmax,axis=0)
-            entropy_cos = -a_cos.apply(lambda x: x*np.log2(x)).sum(axis=0)
-            entropy_cos_prob = -a_cos_prob.apply(lambda x: x*np.log2(x)).sum(axis=0)
-            prob_predict = [a[i].sort_values()[-1]for i in range(len(valid_data))]
-
-            return valid_predict,prob_predict,entropy_cos,entropy_cos_prob
-    
+   

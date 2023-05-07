@@ -2,8 +2,6 @@ import scanpy as sc
 import pandas as pd
 import numpy as np
 import os
-import time
-from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import episcanpy.api as epi
 import torch.nn as nn
@@ -19,9 +17,9 @@ import episcanpy.api as epi
 import anndata as ad
 from sklearn.preprocessing import StandardScaler
 
-from utils import *
+from .utils import *
 
-def data_processing(train_data,train_label,test_data,test_label,peak_rate,clrefer,refer=None,refer_label=None,tfidf=None):
+def data_processing(train_data,test_data,peak_rate,clrefer,refer=None,tfidf=None):
     # filter peaks
     if clrefer:
         try:
@@ -46,7 +44,7 @@ def data_processing(train_data,train_label,test_data,test_label,peak_rate,clrefe
         train_data = ss.fit_transform(train_data)
         test_data = ss.transform(test_data)
         refer = ss.fit_transform(refer)
-        return train_data,train_label,test_data,test_label,refer,refer_label
+        return train_data,test_data,refer
     else:
         try:
             Y = train_data.T.toarray()
@@ -67,5 +65,5 @@ def data_processing(train_data,train_label,test_data,test_label,peak_rate,clrefe
         train_data = ss.fit_transform(train_data)
         test_data = ss.transform(test_data)
        
-        return train_data,train_label,test_data,test_label
+        return train_data,test_data
 
